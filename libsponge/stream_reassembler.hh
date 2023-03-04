@@ -4,17 +4,48 @@
 #include "byte_stream.hh"
 
 #include <cstdint>
+#include <list>
+#include <map>
 #include <string>
+#include <unordered_map>
+#include <utility>
+#include <numeric>
+#include <set>
 
 //! \brief A class that assembles a series of excerpts from a byte stream (possibly out of order,
 //! possibly overlapping) into an in-order byte stream.
 class StreamReassembler {
   private:
     // Your code here -- add private members as necessary.
+    struct Segment {
+	size_t _idx;
+	std::string _data;
+
+	Segment() : _idx(0), _data() {}
+	Segment(size_t idx, const std::string& data) : _idx(idx), _data(data) {}
+
+	size_t length() const { return _data.length(); }
+
+	bool operator<(const Segment& seg) const { return _idx < seg._idx; }
+    };
 
     ByteStream _output;  //!< The reassembled in-order byte stream
     size_t _capacity;    //!< The maximum number of bytes
+    std::set<Segment> _buffer{};
+    size_t _unassembled_size{0};
+    bool _is_eof{false};
+    size_t _eof_idx{0};
 
+    void buffer_erase(const std::set<Segment>::iterator &it);
+    void buffer_insert(const Segment& seg);
+
+    void handle_substring(Segment& seg);
+    void handle_overlap(Segment& seg);
+    void merge_seg(Segment& seg, const Segment &cache);
+
+    size_t _1st_unread_idx() const { return _output.bytes_read(); }
+    size_t _1st_unassembled_idx() const { return _output.bytes_written(); }
+    size_t _1st_unacceptable_idx() const { return _1st_unread_idx() + _capacity; }
   public:
     //! \brief Construct a `StreamReassembler` that will store up to `capacity` bytes.
     //! \note This capacity limits both the bytes that have been reassembled,
