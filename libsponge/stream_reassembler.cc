@@ -84,8 +84,8 @@ void StreamReassembler::merge_seg(Segment& seg, const Segment &cache) {
 //! contiguous substrings and writes them into the output stream in order.
 void StreamReassembler::push_substring(const string &data, const size_t index, const bool eof) {
     if (!data.empty()) {
-	Segment seg{index, data};
-	handle_substring(seg);
+        Segment seg{index, data};
+        handle_substring(seg);
     }
 
     while (!_buffer.empty() && _buffer.begin()->_idx == _1st_unassembled_idx()) {
