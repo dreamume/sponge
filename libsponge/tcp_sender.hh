@@ -9,6 +9,36 @@
 #include <functional>
 #include <queue>
 
+class RetransmissionTimer {
+public:
+    void start(const unsigned int rto) {
+        _is_started = true;
+        _is_expired = false;
+        _remaining_time = rto;
+    }
+
+    void stop() {
+        _is_started = false;
+        _is_expired = false;
+        _remaining_time = 0;
+    }
+
+    void tick(const size_t ms_since_last_tick) {
+        if (!is_started()) return;
+        if (ms_since_last_tick >= _remaining_time)
+            _is_expired = true;
+        else 
+            _remaining_time -= ms_since_last_tick;
+    }
+
+    bool is_expired() { return _is_expired && _is_started; }
+    bool is_started() { return _is_started; }
+private:
+    unsigned int _remaining_time{0};
+    bool _is_expired{false};
+    bool _is_started{false};
+};
+
 //! \brief The "sender" part of a TCP implementation.
 
 //! Accepts a ByteStream, divides it up into segments and sends the
@@ -17,6 +47,15 @@
 //! segments if the retransmission timer expires.
 class TCPSender {
   private:
+    unsigned int _RTO{_initial_retransmission_timeout};
+    unsigned int _consecutive_retransmission_counts{0};
+    uint64_t _last_ackno{0};
+    uint16_t _last_window_size{1};
+
+    RetransmissionTimer _timer{};
+
+    std::queue<TCPSegment> _segments_outstanding{};
+    
     //! our initial sequence number, the number for our SYN.
     WrappingInt32 _isn;
 
@@ -31,6 +70,8 @@ class TCPSender {
 
     //! the (absolute) sequence number for the next byte to be sent
     uint64_t _next_seqno{0};
+
+    void send_segment(TCPSegment &seg);
 
   public:
     //! Initialize a TCPSender
