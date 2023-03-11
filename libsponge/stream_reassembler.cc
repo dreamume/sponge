@@ -1,6 +1,7 @@
 #include "stream_reassembler.hh"
 
 #include <vector>
+#include <iostream>
 
 // Dummy implementation of a stream reassembler.
 
@@ -15,7 +16,9 @@ void DUMMY_CODE(Targs &&... /* unused */) {}
 using namespace std;
 
 //StreamReassembler::StreamReassembler(const size_t capacity) : _output(capacity), _capacity(capacity) {}
-StreamReassembler::StreamReassembler(const size_t capacity) : _output(capacity), _capacity(capacity), _buffer(), _unassembled_size(0), _is_eof(false), _eof_idx(0) {}
+StreamReassembler::StreamReassembler(const size_t capacity) : _output(capacity), _capacity(capacity) {
+    _unassembled_size = 0;
+}//, _buffer(), _unassembled_size(0), _is_eof(false), _eof_idx(0) {}
 
 void StreamReassembler::buffer_erase(const set<Segment>::iterator &it) {
     _unassembled_size -= it->length();
@@ -30,30 +33,30 @@ void StreamReassembler::buffer_insert(const Segment &seg) {
 void StreamReassembler::handle_substring(Segment& seg) {
     if (seg._idx >= _1st_unacceptable_idx()) return;
 
-    if (seg._idx < _1st_unacceptable_idx() && 
-	seg._idx + seg.length() - 1 >= _1st_unacceptable_idx())
+    if (seg._idx + seg.length() >= _1st_unacceptable_idx())
 	seg._data = seg._data.substr(0, _1st_unacceptable_idx() - seg._idx);
 
-    if (seg._idx + seg.length() - 1 < _1st_unassembled_idx()) return;
+    if (seg._idx + seg.length() < _1st_unassembled_idx()) return;
 
     if (seg._idx < _1st_unassembled_idx() && 
-	seg._idx + seg.length() - 1 >= _1st_unassembled_idx()) {
+	seg._idx + seg.length() >= _1st_unassembled_idx()) {
 	seg._data = seg._data.substr(_1st_unassembled_idx() - seg._idx);
 	seg._idx = _1st_unassembled_idx();
     }
 
-    if (_buffer.empty()) _buffer.insert(seg);
+    if (_buffer.empty()) buffer_insert(seg);
     else handle_overlap(seg);
 }
 
 void StreamReassembler::handle_overlap(Segment& seg) {
     for (auto it = _buffer.begin(); it != _buffer.end();) {
-	size_t seg_tail = seg._idx + seg.length() - 1;
-	size_t cache_tail = it->_idx + it->length() - 1;
+	size_t seg_tail = seg._idx + seg.length();
+	size_t cache_tail = it->_idx + it->length();
 
 	if ((seg._idx >= it->_idx && seg._idx <= cache_tail) ||
 	    (it->_idx >= seg._idx && it->_idx <= seg_tail)) {
 	    merge_seg(seg, *it);
+//	    _unassembled_size -= min(cache_tail, seg_tail) - max(seg._idx, it->_idx);
 	    buffer_erase(it++);
 	} else {
 	    ++it;
@@ -64,8 +67,8 @@ void StreamReassembler::handle_overlap(Segment& seg) {
 }
 
 void StreamReassembler::merge_seg(Segment& seg, const Segment &cache) {
-    size_t seg_tail = seg._idx + seg.length() - 1;
-    size_t cache_tail = cache._idx + cache.length() - 1;
+    size_t seg_tail = seg._idx + seg.length();
+    size_t cache_tail = cache._idx + cache.length();
 
     if (seg._idx < cache._idx && seg_tail <= cache_tail) {
 	seg._data = seg._data.substr(0, cache._idx - seg._idx) + cache._data;
@@ -83,6 +86,9 @@ void StreamReassembler::merge_seg(Segment& seg, const Segment &cache) {
 //! possibly out-of-order, from the logical stream, and assembles any newly
 //! contiguous substrings and writes them into the output stream in order.
 void StreamReassembler::push_substring(const string &data, const size_t index, const bool eof) {
+    std::cout << "data is " << data << " index is " << index << " eof is " << eof << std::endl;
+    if (index >= _1st_unassembled_idx() + _capacity) return;
+
     if (!data.empty()) {
 	Segment seg{index, data};
 	handle_substring(seg);
@@ -91,6 +97,7 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
     while (!_buffer.empty() && _buffer.begin()->_idx == _1st_unassembled_idx()) {
 	const auto& it = _buffer.begin();
 	_output.write(it->_data);
+	//_unassembled_size -= it->length();
 	buffer_erase(it);
     }
 
