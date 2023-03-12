@@ -47,7 +47,7 @@ private:
 //! segments if the retransmission timer expires.
 class TCPSender {
   private:
-    unsigned int _RTO{_initial_retransmission_timeout};
+    unsigned int _RTO;
     unsigned int _consecutive_retransmission_counts{0};
     uint64_t _last_ackno{0};
     uint16_t _last_window_size{1};

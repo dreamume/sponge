@@ -18,7 +18,8 @@ using namespace std;
 //! \param[in] retx_timeout the initial amount of time to wait before retransmitting the oldest outstanding segment
 //! \param[in] fixed_isn the Initial Sequence Number to use, if set (otherwise uses a random ISN)
 TCPSender::TCPSender(const size_t capacity, const uint16_t retx_timeout, const std::optional<WrappingInt32> fixed_isn)
-    : _isn(fixed_isn.value_or(WrappingInt32{random_device()()}))
+  : _RTO(retx_timeout)
+  , _isn(fixed_isn.value_or(WrappingInt32{random_device()()}))
     , _initial_retransmission_timeout{retx_timeout}
     , _stream(capacity) {}
 
@@ -35,7 +36,7 @@ void TCPSender::fill_window() {
         return;
     }
 
-    uint16_t current_window_size = _last_window_size = 0 ? 1 : _last_window_size;
+    uint16_t current_window_size = _last_window_size == 0 ? 1 : _last_window_size;
     size_t remaining_window_size{0};
     while ((remaining_window_size = current_window_size - bytes_in_flight())) {
         if (!_stream.eof() && next_seqno_absolute() > bytes_in_flight()) {
@@ -105,7 +106,7 @@ void TCPSender::send_empty_segment() {
 }
 
 void TCPSender::send_segment(TCPSegment &seg) {
-    seq.header().seqno = next_seqno();
+    seg.header().seqno = next_seqno();
     _next_seqno += seg.length_in_sequence_space();
     _segments_out.push(seg);
     _segments_outstanding.push(seg);
